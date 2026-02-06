@@ -5,15 +5,25 @@ from surrogates import (
     EnsembleFeatureLoss,
     VisionTransformerFeatureExtractor,
 )
-from utils import get_list_image, save_list_images
+from utils import get_list_image, save_list_images, save_image
 from tqdm import tqdm
 from attacks import SpectrumSimulationAttack, SSA_CommonWeakness
-from torchvision import transforms
-import os
 
-images = get_list_image("./dataset/NIPS17")
-resizer = transforms.Resize((224, 224))
-images = [resizer(i).unsqueeze(0) for i in images]
+import os
+import argparse
+
+parser = argparse.ArgumentParser(description='Attack image encoder with misdescription')
+parser.add_argument('--original_dir', type=str, default="/workspace/multimodal-sae-steering/images/LLaVA-Instruct-150K/original/dev", help='Directory containing original images')
+parser.add_argument('--output_dir', type=str, default="/workspace/multimodal-sae-steering/images/LLaVA-Instruct-150K/attacked/SSA-CWA/dev", help='Directory to save attacked images')
+args = parser.parse_args()
+
+original_dir = args.original_dir
+output_dir = args.output_dir
+images = get_list_image(original_dir)
+if not os.path.exists(output_dir):
+    os.makedirs(output_dir)
+
+images = [i.unsqueeze(0) for i in images]
 
 blip = BlipFeatureExtractor().eval().cuda().requires_grad_(False)
 clip = ClipFeatureExtractor().eval().cuda().requires_grad_(False)
@@ -39,13 +49,17 @@ attacker = SSA_CommonWeakness(
     criterion=ssa_cw_loss,
 )
 
-dir = "./attack_img_encoder_misdescription/"
-if not os.path.exists(dir):
-    os.mkdir(dir)
+
 id = 0
 for i, x in enumerate(tqdm(images)):
+    
+    if os.path.exists(os.path.join(output_dir, f"{id}.png")):
+        print(f"Image {id} already exists, skipping...")
+        id += x.shape[0]
+        continue
+    
     x = x.cuda()
     ssa_cw_loss.set_ground_truth(x)
     adv_x = attacker(x, None)
-    save_list_images(adv_x, dir, begin_id=id)
+    save_list_images(adv_x, output_dir, begin_id=id)
     id += x.shape[0]

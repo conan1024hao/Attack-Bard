@@ -6,6 +6,7 @@ import os
 from torch import Tensor
 import cv2
 from typing import List, Callable
+from torchvision import transforms
 from tqdm import tqdm
 
 
@@ -56,6 +57,11 @@ def scale_and_show_tensor(x: Tensor):
 def get_image(path: str = "image.jpg") -> Tensor:
     image = Image.open(path)
     image = image.convert("RGB")
+    w, h = image.size
+    crop_size = min(w, h)
+    image = transforms.CenterCrop(crop_size)(image)
+    resize_224 = transforms.Resize((224, 224))
+    image = resize_224(image)
     transform = transforms.ToTensor()
     return transform(image)
 
